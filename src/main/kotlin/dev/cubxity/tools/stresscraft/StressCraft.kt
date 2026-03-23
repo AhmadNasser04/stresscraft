@@ -39,7 +39,7 @@ class StressCraft(
                     if (sessions < options.count && sessions - activeSessions < options.buffer) {
                         createSession()
                     }
-                } catch (error: Throwable) {
+                } catch (_: Throwable) {
                     // ?
                 }
                 delay(options.delay.toLong())
@@ -56,7 +56,7 @@ class StressCraft(
                                 module.tick(session)
                             }
                         }
-                    } catch (error: Throwable) {
+                    } catch (_: Throwable) {
                         // ?
                     }
                 }

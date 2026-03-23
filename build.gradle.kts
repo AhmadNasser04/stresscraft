@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.7.10"
+    kotlin("jvm") version "1.9.24"
     id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
@@ -14,9 +14,9 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.6.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.5")
-    implementation("org.geysermc.mcprotocollib:protocol:1.21-SNAPSHOT")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6")
+    implementation("org.geysermc.mcprotocollib:protocol:1.21.11-SNAPSHOT")
     implementation("org.fusesource.jansi:jansi:2.4.0")
 }
 

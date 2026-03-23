@@ -2,7 +2,6 @@ package dev.cubxity.tools.stresscraft.data
 
 import org.geysermc.mcprotocollib.protocol.MinecraftProtocol
 import org.geysermc.mcprotocollib.protocol.data.game.ClientCommand
-import org.geysermc.mcprotocollib.protocol.data.game.ResourcePackStatus
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundLoginPacket
 import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundResourcePackPushPacket
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundRespawnPacket
@@ -18,9 +17,11 @@ import org.geysermc.mcprotocollib.network.Session
 import org.geysermc.mcprotocollib.network.event.session.DisconnectedEvent
 import org.geysermc.mcprotocollib.network.event.session.SessionAdapter
 import org.geysermc.mcprotocollib.network.packet.Packet
-import org.geysermc.mcprotocollib.network.tcp.TcpClientSession
+import org.geysermc.mcprotocollib.network.factory.ClientNetworkSessionFactory
 import dev.cubxity.tools.stresscraft.StressCraft
 import dev.cubxity.tools.stresscraft.util.ServerTimer
+import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundPingPacket
+import org.geysermc.mcprotocollib.protocol.packet.common.serverbound.ServerboundPongPacket
 
 class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
     private var wasAlive = false
@@ -35,9 +36,20 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
     val session: Session
         get() = _session ?: error("session has not initialized")
 
+    var x: Double = 0.0
+    var y: Double = 0.0
+    var z: Double = 0.0
+    var yaw: Float = 0f
+    var pitch: Float = 0f
+    var isActive: Boolean = false
+        private set
+
     fun connect(name: String) {
         val protocol = MinecraftProtocol(name)
-        val session = TcpClientSession(app.host, app.port, protocol)
+        val session = ClientNetworkSessionFactory.factory()
+            .setAddress(app.host, app.port)
+            .setProtocol(protocol)
+            .create()
 
         session.addListener(this)
 
@@ -46,7 +58,7 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
         try {
             _session = session
             session.connect()
-        } catch (error: Throwable) {
+        } catch (_: Throwable) {
             handleDisconnect()
         }
     }
@@ -57,6 +69,7 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
                 if (!wasActive) {
                     app.activeSessions.incrementAndGet()
                     wasActive = true
+                    isActive = true
                 }
             }
             is ClientboundRespawnPacket -> {
@@ -70,7 +83,13 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
                 }
             }
             is ClientboundPlayerPositionPacket -> {
-                session.send(ServerboundAcceptTeleportationPacket(packet.teleportId))
+                val pos = packet.position
+                x = pos.x
+                y = pos.y
+                z = pos.z
+                yaw = packet.yRot
+                pitch = packet.xRot
+                session.send(ServerboundAcceptTeleportationPacket(packet.id))
             }
             is ClientboundLevelChunkWithLightPacket -> {
                 chunks.add(computeKey(packet.x, packet.z))
@@ -87,12 +106,15 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
                 previousChunkCount = size
             }
             is ClientboundSetTimePacket -> {
-                timer.onWorldTimeUpdate(packet.time)
+                timer.onWorldTimeUpdate(packet.gameTime)
             }
             is ClientboundResourcePackPushPacket -> {
                 app.options.acceptResourcePacks
                     ?.let { ServerboundResourcePackPacket(packet.id, it) }
                     ?.let(session::send)
+            }
+            is ClientboundPingPacket -> {
+                session.send(ServerboundPongPacket(packet.id))
             }
         }
     }

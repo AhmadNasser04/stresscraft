@@ -8,5 +8,5 @@ data class StressCraftOptions(
     val buffer: Int,
     val prefix: String,
     val simulate: Boolean,
-    val acceptResourcePacks: ResourcePackStatus?
+    val acceptResourcePacks: ResourcePackStatus? = ResourcePackStatus.SUCCESSFULLY_LOADED
 )

@@ -46,7 +46,7 @@ object StressCraftCLI {
         })
         terminal.init()
 
-        val options = StressCraftOptions(count, delay, buffer, prefix, simulate, acceptResourcePacks)
+        val options = StressCraftOptions(count, delay, buffer, prefix, simulate, acceptResourcePacks ?: ResourcePackStatus.SUCCESSFULLY_LOADED)
         val app = StressCraft(host, port, options)
         app.start()
 
