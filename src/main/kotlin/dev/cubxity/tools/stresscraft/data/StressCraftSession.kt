@@ -22,8 +22,12 @@ import dev.cubxity.tools.stresscraft.StressCraft
 import dev.cubxity.tools.stresscraft.util.ServerTimer
 import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundPingPacket
 import org.geysermc.mcprotocollib.protocol.packet.common.serverbound.ServerboundPongPacket
+import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundPlayerChatPacket
+import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.ServerboundChatAckPacket
 
-class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
+class StressCraftSession(
+    private val app: StressCraft
+) : SessionAdapter() {
     private var wasAlive = false
     private var wasActive = false
     private var previousChunkCount = 0
@@ -36,13 +40,21 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
     val session: Session
         get() = _session ?: error("session has not initialized")
 
+    // Position & physics
     var x: Double = 0.0
     var y: Double = 0.0
     var z: Double = 0.0
     var yaw: Float = 0f
     var pitch: Float = 0f
+    var velX: Double = 0.0
+    var velY: Double = 0.0
+    var velZ: Double = 0.0
+    var onGround: Boolean = true
     var isActive: Boolean = false
         private set
+
+    // Chat message tracking (for acknowledgements)
+    var lastChatOffset: Int = 0
 
     fun connect(name: String) {
         val protocol = MinecraftProtocol(name)
@@ -76,6 +88,8 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
                 chunks.clear()
                 app.chunksLoaded.addAndGet(-previousChunkCount)
                 previousChunkCount = 0
+                onGround = true
+                velX = 0.0; velY = 0.0; velZ = 0.0
             }
             is ClientboundSetHealthPacket -> {
                 if (packet.health <= 0) {
@@ -89,18 +103,22 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
                 z = pos.z
                 yaw = packet.yRot
                 pitch = packet.xRot
+                // Reset velocity on server teleport
+                val delta = packet.deltaMovement
+                velX = delta.x
+                velY = delta.y
+                velZ = delta.z
+                onGround = false
                 session.send(ServerboundAcceptTeleportationPacket(packet.id))
             }
             is ClientboundLevelChunkWithLightPacket -> {
                 chunks.add(computeKey(packet.x, packet.z))
-
                 val size = chunks.size
                 app.chunksLoaded.addAndGet(size - previousChunkCount)
                 previousChunkCount = size
             }
             is ClientboundForgetLevelChunkPacket -> {
                 chunks.remove(computeKey(packet.x, packet.z))
-
                 val size = chunks.size
                 app.chunksLoaded.addAndGet(size - previousChunkCount)
                 previousChunkCount = size
@@ -110,11 +128,18 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
             }
             is ClientboundResourcePackPushPacket -> {
                 app.options.acceptResourcePacks
-                    ?.let { ServerboundResourcePackPacket(packet.id, it) }
-                    ?.let(session::send)
+                    .let { ServerboundResourcePackPacket(packet.id, it) }
+                    .let(session::send)
             }
             is ClientboundPingPacket -> {
                 session.send(ServerboundPongPacket(packet.id))
+            }
+            is ClientboundPlayerChatPacket -> {
+                // Track received messages for acknowledgement
+                lastChatOffset++
+                if (lastChatOffset % 20 == 0) {
+                    session.send(ServerboundChatAckPacket(lastChatOffset))
+                }
             }
         }
     }
@@ -136,6 +161,7 @@ class StressCraftSession(private val app: StressCraft) : SessionAdapter() {
             app.activeSessions.decrementAndGet()
             wasActive = false
         }
+        isActive = false
         chunks.clear()
         app.chunksLoaded.addAndGet(-previousChunkCount)
         previousChunkCount = 0
